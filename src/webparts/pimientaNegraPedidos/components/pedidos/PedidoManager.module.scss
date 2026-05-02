@@ -1,0 +1,153 @@
+@import '~@fluentui/react/dist/sass/References.scss';
+
+.pedidosShell {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.pageHeader {
+  margin-bottom: 18px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.pageTitle {
+  font-weight: 700;
+}
+
+.pageSubtitle {
+  color: #605e5c;
+}
+
+.addButton {
+  border-radius: 10px;
+}
+
+.messageBar {
+  margin-bottom: 12px;
+}
+
+.tableCard {
+  background: #ffffff;
+  border: 1px solid #e1dfdd;
+  border-radius: 16px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+}
+
+.pedidosList {
+  :global(.ms-DetailsHeader) {
+    padding-top: 8px;
+  }
+
+  :global(.ms-DetailsHeader-cellName) {
+    font-weight: 700;
+  }
+
+  :global(.ms-DetailsRow-cell) {
+    min-height: 58px;
+    display: flex;
+    align-items: center;
+  }
+}
+
+.loadingContainer {
+  padding: 32px;
+}
+
+.emptyState {
+  padding: 28px;
+  text-align: center;
+  color: #605e5c;
+}
+
+.clienteName {
+  font-weight: 600;
+  color: #201f1e;
+}
+
+/* ── Estado badges ─────────────────────────────────────────── */
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.estadoPendiente {
+  background: #f3f2f1;
+  color: #605e5c;
+}
+
+.estadoEnPreparacion {
+  background: #fff4ce;
+  color: #8a7400;
+}
+
+.estadoListo {
+  background: #ddf4ff;
+  color: #0078d4;
+}
+
+.estadoEntregado {
+  background: #dff6dd;
+  color: #107c10;
+}
+
+.estadoCancelado {
+  background: #fde7e9;
+  color: #a4262c;
+}
+
+/* ── Acciones ───────────────────────────────────────────────── */
+.actionButtons {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* ── Panel / formulario ────────────────────────────────────── */
+.panelFooter {
+  padding-top: 8px;
+}
+
+.sectionTitle {
+  font-weight: 700;
+  color: #323130;
+  margin-top: 8px;
+}
+
+.itemRow {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid #f3f2f1;
+}
+
+.itemFieldProducto {
+  flex: 2;
+}
+
+.itemFieldCantidad {
+  flex: 1;
+  min-width: 70px;
+}
+
+.itemFieldOrden {
+  flex: 1;
+  min-width: 70px;
+}
+
+.addItemButton {
+  margin-top: 8px;
+}
+
+.noItems {
+  color: #605e5c;
+  font-size: 13px;
+  padding: 8px 0;
+}
