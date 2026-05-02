@@ -1,0 +1,40 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/spfx-build/package-solution.schema.json",
+  "solution": {
+    "name": "pimienta-negra-gestion-client-side-solution",
+    "id": "ba3f5daf-78b5-4ddd-b645-741f53d4f0d7",
+    "version": "1.0.0.0",
+    "includeClientSideAssets": true,
+    "skipFeatureDeployment": true,
+    "isDomainIsolated": false,
+    "developer": {
+      "name": "",
+      "websiteUrl": "",
+      "privacyUrl": "",
+      "termsOfUseUrl": "",
+      "mpnId": "Undefined-1.22.2"
+    },
+    "metadata": {
+      "shortDescription": {
+        "default": "PimientaNegraGestion description"
+      },
+      "longDescription": {
+        "default": "PimientaNegraGestion description"
+      },
+      "screenshotPaths": [],
+      "videoUrl": "",
+      "categories": []
+    },
+    "features": [
+      {
+        "title": "pimienta-negra-gestion Feature",
+        "description": "The feature that activates elements of the pimienta-negra-gestion solution.",
+        "id": "45bbf358-19d8-46c7-bfe9-1a9df5d2bdbb",
+        "version": "1.0.0.0"
+      }
+    ]
+  },
+  "paths": {
+    "zippedPackage": "solution/pimienta-negra-gestion.sppkg"
+  }
+}

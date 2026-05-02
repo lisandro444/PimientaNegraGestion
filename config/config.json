@@ -1,0 +1,18 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/spfx-build/config.2.0.schema.json",
+  "version": "2.0",
+  "bundles": {
+    "pimienta-negra-pedidos-web-part": {
+      "components": [
+        {
+          "entrypoint": "./lib/webparts/pimientaNegraPedidos/PimientaNegraPedidosWebPart.js",
+          "manifest": "./src/webparts/pimientaNegraPedidos/PimientaNegraPedidosWebPart.manifest.json"
+        }
+      ]
+    }
+  },
+  "externals": {},
+  "localizedResources": {
+    "PimientaNegraPedidosWebPartStrings": "lib/webparts/pimientaNegraPedidos/loc/{locale}.js"
+  }
+}
