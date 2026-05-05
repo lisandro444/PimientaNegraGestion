@@ -88,6 +88,7 @@ export default class PedidoManager extends React.Component<IPedidoManagerProps, 
     this.pedidoService = new PedidoService(new SharePointService(props.context.pageContext));
     this.state = {
       view: 'lista',
+      viewMode: 'tarjetas',
       showDetailPanel: false,
       selectedPedido: undefined,
       pedidos: [],
@@ -154,7 +155,7 @@ export default class PedidoManager extends React.Component<IPedidoManagerProps, 
       selectedPedido, showDetailPanel, pedidos, loading, error, success,
       filtros, pedidosSeleccionados, soloHoy,
       pedidoItems, loadingItems, costoEnvio, savingEstado,
-      isPanelOpen, saving, editingPedido, formData, itemsForm
+      isPanelOpen, saving, editingPedido, formData, itemsForm, viewMode
     } = this.state;
 
     return (
@@ -182,6 +183,8 @@ export default class PedidoManager extends React.Component<IPedidoManagerProps, 
             pedidosSeleccionados={pedidosSeleccionados}
             soloHoy={soloHoy}
             costoEnvio={costoEnvio}
+            viewMode={viewMode}
+            onViewModeChange={(mode) => this.setState({ viewMode: mode })}
             getItemsForPedido={this.getItemsForPedido}
             loadingItemsIds={Array.from(this.loadingSet)}
             expandedIds={this.expandedIds}

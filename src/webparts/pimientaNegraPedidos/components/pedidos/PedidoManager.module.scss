@@ -260,12 +260,12 @@ $pn-priority:   #c0392b;
 
 // Filtros
 .filtrosCard {
-  background: $pn-card;
-  border: 1px solid $pn-border;
+  background: #f6f1e8;
+  border: 1px solid #ddcfbe;
   border-radius: 12px;
   padding: 14px 16px 12px;
   margin-bottom: 10px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  box-shadow: 0 1px 2px rgba(45, 31, 26, 0.06);
 }
 
 .filtrosRow {
@@ -287,7 +287,7 @@ $pn-priority:   #c0392b;
   gap: 8px;
   flex-wrap: wrap;
   padding-top: 10px;
-  border-top: 1px solid $pn-border;
+  border-top: 1px solid #decebb;
 }
 
 .filtroLabel {
@@ -298,20 +298,20 @@ $pn-priority:   #c0392b;
 }
 
 .btnMetodo {
-  background: transparent;
-  border: 1px solid $pn-border;
+  background: #fffaf2;
+  border: 1px solid #d9c8b4;
   border-radius: 20px;
   padding: 5px 14px;
   font-size: 13px;
   cursor: pointer;
   color: $pn-text;
-  &:hover { background: #f5f3f0; }
+  &:hover { background: #f8ecdc; }
 }
 
 .btnMetodoActive {
-  background: $pn-accent;
+  background: #c65a2b;
   color: #fff;
-  border-color: $pn-accent;
+  border-color: #c65a2b;
   font-weight: 600;
 }
 
@@ -1351,6 +1351,401 @@ $pn-priority:   #c0392b;
   &.totalCero {
     color: $pn-muted;
     font-size: 16px;
+  }
+}
+
+// ── View Mode Toggle ──────────────────────────────────────────────
+
+.viewModeToggle {
+  display: flex;
+  align-items: center;
+  border: 1px solid $pn-border;
+  border-radius: 7px;
+  overflow: hidden;
+}
+
+.viewModeBtn {
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  background: #fff;
+  color: $pn-muted;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+  line-height: 1.4;
+
+  &:hover {
+    background: #f7f7f7;
+    color: $pn-text;
+  }
+}
+
+.viewModeBtnActive {
+  background: $pn-accent;
+  color: #fff;
+
+  &:hover {
+    background: $pn-accent-dk;
+    color: #fff;
+  }
+}
+
+// ── Vista Lista ───────────────────────────────────────────────────
+
+.listTableWrapper {
+  overflow-x: auto;
+  border-radius: 14px;
+  border: 1px solid #d8c9b7;
+  background: #fbf7f1;
+}
+
+.listTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  table-layout: fixed;
+}
+
+.listColNro {
+  width: 19%;
+}
+
+.listColCliente {
+  width: 22%;
+}
+
+.listColEntrega {
+  width: 23%;
+}
+
+.listColEstado {
+  width: 16%;
+}
+
+.listColTotal {
+  width: 20%;
+}
+
+.listHeaderRow {
+  background: #f2ece2;
+  border-bottom: 1px solid #d8c9b7;
+}
+
+.listTh {
+  padding: 10px 14px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #8a7563;
+  white-space: nowrap;
+}
+
+.listThRight {
+  text-align: right;
+}
+
+.listRow {
+  background: #fff;
+  border-bottom: 1px solid #e7ddd1;
+  cursor: pointer;
+  transition: background 0.12s;
+
+  &:hover {
+    background: #f9f2e8;
+  }
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.listRowDelivery {
+  background: #fff;
+}
+
+.listTd {
+  padding: 10px 14px;
+  vertical-align: middle;
+}
+
+.listTdRight {
+  text-align: right;
+}
+
+.listNro {
+  font-size: 12px;
+  font-weight: 700;
+  color: $pn-muted;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+.listNroWrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.listClienteNombre {
+  font-weight: 600;
+  color: $pn-text;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.listClientePhone {
+  font-size: 11px;
+  color: $pn-muted;
+  margin-top: 2px;
+  display: none;
+}
+
+.listPedidoResumen {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: $pn-text;
+}
+
+.listPedidoIcon {
+  flex-shrink: 0;
+}
+
+.listPedidoText {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+.listExpandBtn {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 10px;
+  color: $pn-muted;
+  padding: 2px 4px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  transition: background 0.1s, color 0.1s;
+
+  &:hover {
+    background: $pn-border;
+    color: $pn-text;
+  }
+}
+
+.listFecha {
+  font-size: 13px;
+  color: $pn-text;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.listFranja {
+  font-size: 11px;
+  color: $pn-muted;
+  margin-top: 2px;
+}
+
+.listTotal {
+  font-size: 14px;
+  font-weight: 700;
+  color: $pn-accent;
+  white-space: nowrap;
+}
+
+.listChevron {
+  font-size: 18px;
+  color: $pn-muted;
+  line-height: 1;
+}
+
+// ── Fila expandida de lista ────────────────────────────────────────
+
+.listExpandedRow {
+  background: #f6f1e8;
+  border-bottom: 1px solid #dccfbe;
+}
+
+.listExpandedCell {
+  padding: 0 14px 12px 18px;
+}
+
+.listProductTable {
+  width: 80%;
+  max-width: 820px;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 13px;
+  margin-top: 0;
+  margin-right: auto;
+  background: #f9f5ed;
+  border: 1px solid #dfd3c4;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.listProductTable th:nth-child(1),
+.listProductTable td:nth-child(1) {
+  width: 62%;
+}
+
+.listProductTable th:nth-child(2),
+.listProductTable td:nth-child(2) {
+  width: 12%;
+}
+
+.listProductTable th:nth-child(3),
+.listProductTable td:nth-child(3) {
+  width: 26%;
+}
+
+.listProductTh {
+  padding: 7px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: #7c6b5f;
+  text-align: left;
+  background: #eee6da;
+  border-bottom: 1px solid #ddd0bf;
+}
+
+.listProductThNum {
+  text-align: right;
+}
+
+.listProductRow {
+  border-bottom: 1px solid #e4d8c9;
+
+  &:hover {
+    background: #f5ede1;
+  }
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.listProductTd {
+  padding: 7px 8px;
+  color: $pn-text;
+  vertical-align: middle;
+}
+
+.listProductTdNum {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: $pn-text;
+}
+
+.listEnvioLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  line-height: 1.2;
+}
+
+.listEnvioIcon {
+  display: inline-block;
+  transform: translateY(-1px);
+}
+
+.listExpandedTotal {
+  text-align: right;
+  padding: 7px 8px 4px;
+  font-size: 14px;
+  color: $pn-text;
+
+  strong {
+    color: $pn-accent;
+    font-size: 16px;
+  }
+}
+
+.listComentario {
+  font-size: 12px;
+  color: #8a6a00;
+  background: #fef9ee;
+  border-left: 2px solid #e8b800;
+  padding: 5px 8px;
+  border-radius: 0 4px 4px 0;
+  margin-top: 8px;
+}
+
+@media (max-width: 600px) {
+  .listTable {
+    table-layout: auto;
+  }
+
+  .listHeaderRow th:nth-child(3),
+  .listHeaderRow th:nth-child(4),
+  .listRow td:nth-child(3),
+  .listRow td:nth-child(4) {
+    display: none;
+  }
+
+  .listColNro {
+    width: 34%;
+  }
+
+  .listColCliente {
+    width: 38%;
+  }
+
+  .listColEntrega,
+  .listColEstado {
+    width: 0;
+  }
+
+  .listColTotal {
+    width: 28%;
+  }
+
+  .listTh,
+  .listTd {
+    padding: 8px;
+  }
+
+  .listRow td:first-child .listClientePhone {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    margin-top: 6px;
+
+    .estadoBadge {
+      padding: 2px 10px;
+      font-size: 11px;
+    }
+  }
+
+  .listClienteNombre {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  .listTotal {
+    font-size: 13px;
+  }
+
+  .listExpandedCell {
+    padding: 0 8px 10px 8px;
+  }
+
+  .listProductTable {
+    width: 100%;
+    max-width: none;
   }
 }
 

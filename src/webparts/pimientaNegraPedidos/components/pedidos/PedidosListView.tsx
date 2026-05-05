@@ -20,6 +20,8 @@ export interface IPedidosListViewProps {
   pedidosSeleccionados: number[];
   soloHoy: boolean;
   costoEnvio: number;
+  viewMode: 'tarjetas' | 'lista';
+  onViewModeChange: (mode: 'tarjetas' | 'lista') => void;
   getItemsForPedido: (pedidoId: number) => IPedidoItem[];
   loadingItemsIds: number[];
   onFiltroChange: (filtros: Partial<IPedidoFiltros>) => void;
@@ -74,6 +76,19 @@ function formatFecha(isoDate?: string): string {
   return d.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+function startOfLocalDate(isoDate?: string): Date | undefined {
+  if (!isoDate) return undefined;
+
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(isoDate);
+  if (match) {
+    return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  }
+
+  const parsed = new Date(isoDate);
+  if (isNaN(parsed.getTime())) return undefined;
+  return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+}
+
 function formatMoney(n: number): string {
   return `$ ${n.toLocaleString('es-AR')}`;
 }
@@ -81,6 +96,7 @@ function formatMoney(n: number): string {
 export const PedidosListView: React.FC<IPedidosListViewProps> = (props) => {
   const {
     pedidos, loading, filtros, pedidosSeleccionados, soloHoy, costoEnvio,
+    viewMode, onViewModeChange,
     getItemsForPedido, loadingItemsIds, onFiltroChange, onToggleSeleccion,
     onSeleccionarTodos, onLimpiarSeleccion, onCambiarEstadoMasivo,
     onVerDetalle, onToggleExpand, expandedIds, onSoloHoy, onCostoEnvioChange, onNuevoPedido
@@ -110,8 +126,30 @@ export const PedidosListView: React.FC<IPedidosListViewProps> = (props) => {
     let result = [...pedidos];
 
     if (soloHoy) {
-      const hoy = new Date().toDateString();
-      result = result.filter((p) => p.FechaEntrega && new Date(p.FechaEntrega).toDateString() === hoy);
+      const hoy = new Date();
+      const inicioHoy = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+      const inicioManana = new Date(inicioHoy);
+      inicioManana.setDate(inicioManana.getDate() + 1);
+      const inicioPasadoManana = new Date(inicioHoy);
+      inicioPasadoManana.setDate(inicioPasadoManana.getDate() + 2);
+      const corteManana = new Date(inicioHoy);
+      corteManana.setHours(22, 0, 0, 0);
+
+      result = result.filter((pedido) => {
+        const estadoValido = pedido.EstadoPedido === 'Nuevo' || pedido.EstadoPedido === 'Confirmado';
+        if (!estadoValido) return false;
+
+        const fechaEntrega = startOfLocalDate(pedido.FechaEntrega);
+        if (!fechaEntrega) return false;
+
+        const esEntregaHoy = fechaEntrega >= inicioHoy && fechaEntrega < inicioManana;
+        if (esEntregaHoy) return true;
+
+        const esEntregaManana = fechaEntrega >= inicioManana && fechaEntrega < inicioPasadoManana;
+        if (!esEntregaManana || !pedido.SubmittedAt) return false;
+
+        return new Date(pedido.SubmittedAt) <= corteManana;
+      });
     }
 
     if (filtros.texto) {
@@ -157,6 +195,23 @@ export const PedidosListView: React.FC<IPedidosListViewProps> = (props) => {
           </Text>
         </div>
         <div className={styles.headerActions}>
+          {/* Toggle Tarjetas / Lista */}
+          <div className={styles.viewModeToggle}>
+            <button
+              className={`${styles.viewModeBtn} ${viewMode === 'tarjetas' ? styles.viewModeBtnActive : ''}`}
+              onClick={() => onViewModeChange('tarjetas')}
+              title="Vista tarjetas"
+            >
+              ⊞ Tarjetas
+            </button>
+            <button
+              className={`${styles.viewModeBtn} ${viewMode === 'lista' ? styles.viewModeBtnActive : ''}`}
+              onClick={() => onViewModeChange('lista')}
+              title="Vista lista"
+            >
+              ≡ Lista
+            </button>
+          </div>
           {/* Envío inline editable */}
           <div className={styles.envioInline}>
             <span className={styles.envioInlineIcon}>🚚</span>
@@ -178,12 +233,19 @@ export const PedidosListView: React.FC<IPedidosListViewProps> = (props) => {
               </button>
             )}
           </div>
-          <button
-            className={`${styles.btnSecondary} ${soloHoy ? styles.btnActive : ''}`}
-            onClick={onSoloHoy}
-          >
-            📅 Solo hoy
-          </button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+            <button
+              className={`${styles.btnSecondary} ${soloHoy ? styles.btnActive : ''}`}
+              onClick={onSoloHoy}
+            >
+              ✅ Pedidos a Preparar
+            </button>
+            {soloHoy && (
+              <span style={{ fontSize: 11, color: '#7a6f6a', maxWidth: 220, lineHeight: 1.25 }}>
+                Muestra pedidos nuevos o confirmados cargados hasta ayer 22:00.
+              </span>
+            )}
+          </div>
           <button
             className={`${styles.btnSecondary} ${pedidosSeleccionados.length > 0 ? styles.btnActive : ''}`}
             onClick={pedidosSeleccionados.length > 0 ? onLimpiarSeleccion : onSeleccionarTodos}
@@ -259,7 +321,7 @@ export const PedidosListView: React.FC<IPedidosListViewProps> = (props) => {
       </div>
       )}
 
-      {/* ── Cards ───────────────────────────────────────────── */}
+      {/* ── Cards / Lista ────────────────────────────────── */}
       {loading ? (
         <div className={styles.loadingContainer}>
           <Spinner size={SpinnerSize.large} label="Cargando pedidos..." />
@@ -268,7 +330,7 @@ export const PedidosListView: React.FC<IPedidosListViewProps> = (props) => {
         <div className={styles.emptyState}>
           <Text>No hay pedidos que coincidan con los filtros aplicados.</Text>
         </div>
-      ) : (
+      ) : viewMode === 'tarjetas' ? (
         <div className={styles.cardGrid}>
           {pedidosFiltrados.map((pedido) => {
             const items = getItemsForPedido(pedido.ID);
@@ -408,6 +470,144 @@ export const PedidosListView: React.FC<IPedidosListViewProps> = (props) => {
               </div>
             );
           })}
+        </div>
+      ) : (
+        /* ── Vista Lista ── */
+        <div className={styles.listTableWrapper}>
+          <table className={styles.listTable}>
+            <colgroup>
+              <col className={styles.listColNro} />
+              <col className={styles.listColCliente} />
+              <col className={styles.listColEntrega} />
+              <col className={styles.listColEstado} />
+              <col className={styles.listColTotal} />
+            </colgroup>
+            <thead>
+              <tr className={styles.listHeaderRow}>
+                <th className={styles.listTh}>Nº Pedido</th>
+                <th className={styles.listTh}>Cliente</th>
+                <th className={styles.listTh}>Entrega</th>
+                <th className={styles.listTh}>Estado</th>
+                <th className={`${styles.listTh} ${styles.listThRight}`}>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pedidosFiltrados.map((pedido) => {
+                const items = getItemsForPedido(pedido.ID);
+                const isLoadingItems = loadingItemsIds.includes(pedido.ID);
+                const isExpanded = expandedIds.includes(pedido.ID);
+                const estadoClass = ESTADOS_BADGE[pedido.EstadoPedido] || styles.estadoNuevo;
+                const isDelivery = pedido.MetodoEntrega === 'Delivery' || pedido.MetodoEntrega === 'Entrega a domicilio';
+                // TODO: reemplazar por cálculo real desde campo de precio en SP
+                const subtotalProductos = items.reduce((sum, item) => {
+                  const dollarIdx = item.Producto.lastIndexOf('$');
+                  if (dollarIdx < 0) return sum;
+                  const raw = item.Producto.slice(dollarIdx + 1).replace(/[.\s]/g, '').replace(',', '.');
+                  const precio = parseFloat(raw);
+                  return sum + (isNaN(precio) ? 0 : precio * item.Cantidad);
+                }, 0);
+                const total = subtotalProductos + (isDelivery ? costoEnvio : 0);
+
+                return (
+                  <React.Fragment key={pedido.ID}>
+                    <tr
+                      className={`${styles.listRow} ${isDelivery ? styles.listRowDelivery : ''}`}
+                      onClick={() => onVerDetalle(pedido)}
+                    >
+                      <td className={styles.listTd}>
+                        <div className={styles.listNroWrap}>
+                          <span className={styles.listNro}>{pedido.Title}</span>
+                          <button
+                            className={styles.listExpandBtn}
+                            onClick={(e) => { e.stopPropagation(); onToggleExpand(pedido.ID); }}
+                            title={isExpanded ? 'Colapsar' : 'Ver productos'}
+                          >
+                            {isExpanded ? '▲' : '▼'}
+                          </button>
+                        </div>
+                        <div className={styles.listClientePhone}>
+                          <span>{formatFecha(pedido.FechaEntrega)}</span>
+                          <span className={`${styles.estadoBadge} ${estadoClass}`}>{pedido.EstadoPedido}</span>
+                        </div>
+                      </td>
+                      <td className={styles.listTd}>
+                        <div className={styles.listClienteNombre}>{pedido.NombreCompleto}</div>
+                      </td>
+                      <td className={styles.listTd}>
+                        <div className={styles.listFecha}>{formatFecha(pedido.FechaEntrega)}</div>
+                        {pedido.HorarioAproximado && (
+                          <div className={styles.listFranja}>⏱ {getFranja(pedido.HorarioAproximado)}</div>
+                        )}
+                      </td>
+                      <td className={styles.listTd}>
+                        <span className={`${styles.estadoBadge} ${estadoClass}`}>{pedido.EstadoPedido}</span>
+                      </td>
+                      <td className={`${styles.listTd} ${styles.listTdRight}`}>
+                        <span className={styles.listTotal}>{formatMoney(total)}</span>
+                      </td>
+                    </tr>
+
+                    {isExpanded && (
+                      <tr className={styles.listExpandedRow}>
+                        <td colSpan={5} className={styles.listExpandedCell}>
+                          {isLoadingItems ? (
+                            <Spinner size={SpinnerSize.xSmall} />
+                          ) : (
+                            <table className={styles.listProductTable}>
+                              <thead>
+                                <tr>
+                                  <th className={styles.listProductTh}>Producto</th>
+                                  <th className={`${styles.listProductTh} ${styles.listProductThNum}`}>Cant.</th>
+                                  <th className={`${styles.listProductTh} ${styles.listProductThNum}`}>Precio</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {items.slice().sort((a, b) => a.Orden - b.Orden).map((item) => {
+                                  const sepIdx = item.Producto.lastIndexOf(' – ');
+                                  const prodNombre = sepIdx >= 0 ? item.Producto.slice(0, sepIdx) : item.Producto;
+                                  const dollarIdx = item.Producto.lastIndexOf('$');
+                                  const precioUnit = dollarIdx >= 0
+                                    ? parseFloat(item.Producto.slice(dollarIdx + 1).replace(/[.\s]/g, '').replace(',', '.'))
+                                    : 0;
+                                  const subtotal = isNaN(precioUnit) ? 0 : precioUnit * item.Cantidad;
+                                  return (
+                                    <tr key={item.ID} className={styles.listProductRow}>
+                                      <td className={styles.listProductTd}>{prodNombre}</td>
+                                      <td className={`${styles.listProductTd} ${styles.listProductTdNum}`}>{item.Cantidad}</td>
+                                      <td className={`${styles.listProductTd} ${styles.listProductTdNum}`}>
+                                        {subtotal > 0 ? formatMoney(subtotal) : (precioUnit > 0 ? formatMoney(precioUnit) : '-')}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                                {isDelivery && (
+                                  <tr className={styles.listProductRow}>
+                                    <td className={styles.listProductTd}>
+                                      <span className={styles.listEnvioLabel}>
+                                        <span className={styles.listEnvioIcon} aria-hidden="true">🚚</span>
+                                        Envío a domicilio
+                                      </span>
+                                    </td>
+                                    <td className={`${styles.listProductTd} ${styles.listProductTdNum}`} />
+                                    <td className={`${styles.listProductTd} ${styles.listProductTdNum}`}>{formatMoney(costoEnvio)}</td>
+                                  </tr>
+                                )}
+                              </tbody>
+                            </table>
+                          )}
+                          {pedido.Comentarios && (
+                            <div className={styles.listComentario}>
+                              📌 <em>{pedido.Comentarios}</em>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

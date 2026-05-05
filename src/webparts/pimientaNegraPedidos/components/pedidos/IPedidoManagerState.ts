@@ -13,6 +13,7 @@ export interface IPedidoFiltros {
 export interface IPedidoManagerState {
   // Vista
   view: PedidoView;
+  viewMode: 'tarjetas' | 'lista';
   showDetailPanel: boolean;
   selectedPedido?: IPedido;
 
