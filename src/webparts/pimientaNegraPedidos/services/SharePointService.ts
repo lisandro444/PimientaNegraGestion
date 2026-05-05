@@ -4,13 +4,12 @@ import '@pnp/sp/lists';
 import '@pnp/sp/items';
 import { PageContext } from '@microsoft/sp-page-context';
 
-const COCINA_SITE_URL = 'https://lisandrorossi444.sharepoint.com/sites/PimientaNegra-Cocina';
 
 export class SharePointService {
   private readonly sp: SPFI;
 
   constructor(pageContext: PageContext) {
-    this.sp = spfi(COCINA_SITE_URL).using(SPFx({ pageContext }));
+    this.sp = spfi().using(SPFx({ pageContext }));
   }
 
   public async getListItems<T>(listTitle: string, selectFields: string[], top: number = 200): Promise<T[]> {

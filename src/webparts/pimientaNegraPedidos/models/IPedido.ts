@@ -3,7 +3,6 @@ export interface IPedido {
   Title: string;
   FormResponseId?: number;
   SubmittedAt?: string;
-  CompletedAt?: string;
   NombreCompleto: string;
   WhatsApp: string;
   MetodoEntrega: string;

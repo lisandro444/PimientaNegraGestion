@@ -7,7 +7,6 @@ type SharePointPedidoItem = {
   Title?: string;
   FormResponseId?: number;
   SubmittedAt?: string;
-  CompletedAt?: string;
   NombreCompleto?: string;
   WhatsApp?: string;
   MetodoEntrega?: string;
@@ -23,31 +22,48 @@ type SharePointPedidoItem = {
 type SharePointPedidoItemRow = {
   ID: number;
   Title?: string;
-  Pedido?: string;
+  Pedido?: string | number;
+  PedidoId?: number;
+  PedidoFormResponseId?: number;
   Producto?: string;
   Cantidad?: number;
   Orden?: number;
 };
 
+const COSTO_ENVIO_KEY = 'pn_costo_envio';
+const DEFAULT_COSTO_ENVIO = 2000;
+
 export class PedidoService {
   private readonly sharePointService: SharePointService;
 
   private readonly pedidosListTitle: string = 'Pedidos';
-  private readonly itemsListTitle: string = 'PedidoItems';
+  private readonly itemsListTitle: string = 'Productos';
 
   private readonly pedidoSelectFields: string[] = [
-    'ID', 'Title', 'FormResponseId', 'SubmittedAt', 'CompletedAt',
+    'ID', 'Title', 'FormResponseId', 'SubmittedAt',
     'NombreCompleto', 'WhatsApp', 'MetodoEntrega', 'DireccionEntrega',
     'FechaEntrega', 'HorarioAproximado', 'MetodoPago', 'CubiertosDescartables',
     'Comentarios', 'EstadoPedido'
   ];
 
   private readonly itemSelectFields: string[] = [
-    'ID', 'Title', 'Pedido', 'Producto', 'Cantidad', 'Orden'
+    'ID', 'Title', 'PedidoFormResponseId', 'Producto', 'Cantidad'
   ];
 
   constructor(sharePointService: SharePointService) {
     this.sharePointService = sharePointService;
+  }
+
+  public getCostoEnvio(): number {
+    if (typeof localStorage === 'undefined') return DEFAULT_COSTO_ENVIO;
+    const stored = localStorage.getItem(COSTO_ENVIO_KEY);
+    return stored ? parseFloat(stored) : DEFAULT_COSTO_ENVIO;
+  }
+
+  public setCostoEnvio(valor: number): void {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(COSTO_ENVIO_KEY, String(valor));
+    }
   }
 
   public async getPedidos(): Promise<IPedido[]> {
@@ -71,44 +87,64 @@ export class PedidoService {
     await this.sharePointService.updateListItem(this.pedidosListTitle, id, this.mapPedidoPayload(formData));
   }
 
+  public async updateEstado(id: number, estado: string): Promise<void> {
+    await this.sharePointService.updateListItem(this.pedidosListTitle, id, { EstadoPedido: estado });
+  }
+
   public async deletePedido(id: number): Promise<void> {
     const existingItems = await this.getItemsByPedidoId(id);
     await Promise.all(existingItems.map((item) => this.sharePointService.deleteListItem(this.itemsListTitle, item.ID)));
     await this.sharePointService.deleteListItem(this.pedidosListTitle, id);
   }
 
-  public async getItemsByPedidoId(pedidoId: number): Promise<IPedidoItem[]> {
-    const items = await this.sharePointService.getListItemsFiltered<SharePointPedidoItemRow>(
-      this.itemsListTitle,
-      this.itemSelectFields,
-      `Pedido eq '${pedidoId}'`
-    );
-    return items.map((item) => this.mapPedidoItem(item));
+  public async getItemsByPedidoId(pedidoId: number, formResponseId?: number): Promise<IPedidoItem[]> {
+    const exprs: string[] = [];
+
+    // Prioridad 1: relación PedidoFormResponseId ↔ FormResponseId de Pedidos
+    if (formResponseId !== undefined && formResponseId !== null) {
+      exprs.push(`PedidoFormResponseId eq ${formResponseId}`);
+    }
+    // Prioridad 2: lookup interno de SharePoint
+    exprs.push(`PedidoId eq ${pedidoId}`);
+    exprs.push(`Pedido eq ${pedidoId}`);
+    exprs.push(`Pedido eq '${pedidoId}'`);
+
+    for (const expr of exprs) {
+      try {
+        const items = await this.sharePointService.getListItemsFiltered<SharePointPedidoItemRow>(
+          this.itemsListTitle,
+          this.itemSelectFields,
+          expr
+        );
+        return items.map((item) => this.mapPedidoItem(item));
+      } catch (err) {
+        console.warn(`[PedidoService] Filtro fallido (${expr}):`, err);
+      }
+    }
+
+    return [];
   }
 
-  public async saveItems(pedidoId: number, itemsForm: IPedidoItemFormData[]): Promise<void> {
-    const existingItems = await this.getItemsByPedidoId(pedidoId);
+  public async saveItems(pedidoId: number, itemsForm: IPedidoItemFormData[], formResponseId?: number): Promise<void> {
+    const existingItems = await this.getItemsByPedidoId(pedidoId, formResponseId);
 
     const existingIds = new Set(existingItems.map((i) => i.ID));
     const formIds = new Set(itemsForm.filter((i) => i.ID !== undefined).map((i) => i.ID as number));
 
-    // Delete items removed from form
     const toDelete = existingItems.filter((i) => !formIds.has(i.ID));
     await Promise.all(toDelete.map((i) => this.sharePointService.deleteListItem(this.itemsListTitle, i.ID)));
 
-    // Update existing items
     const toUpdate = itemsForm.filter((i) => i.ID !== undefined && existingIds.has(i.ID as number));
     await Promise.all(
       toUpdate.map((i) =>
-        this.sharePointService.updateListItem(this.itemsListTitle, i.ID as number, this.mapItemPayload(pedidoId, i))
+        this.sharePointService.updateListItem(this.itemsListTitle, i.ID as number, this.mapItemPayload(pedidoId, i, formResponseId))
       )
     );
 
-    // Add new items
     const toAdd = itemsForm.filter((i) => i.ID === undefined);
     await Promise.all(
       toAdd.map((i) =>
-        this.sharePointService.addListItem(this.itemsListTitle, this.mapItemPayload(pedidoId, i))
+        this.sharePointService.addListItem(this.itemsListTitle, this.mapItemPayload(pedidoId, i, formResponseId))
       )
     );
   }
@@ -129,14 +165,21 @@ export class PedidoService {
     };
   }
 
-  private mapItemPayload(pedidoId: number, item: IPedidoItemFormData): Record<string, unknown> {
-    return {
+  private mapItemPayload(pedidoId: number, item: IPedidoItemFormData, formResponseId?: number): Record<string, unknown> {
+    const payload: Record<string, unknown> = {
       Title: item.Producto.trim(),
-      Pedido: String(pedidoId),
       Producto: item.Producto.trim(),
       Cantidad: item.Cantidad,
       Orden: item.Orden
     };
+
+    if (formResponseId !== undefined && formResponseId !== null) {
+      payload.FormResponseId = formResponseId;
+    } else {
+      payload.PedidoId = pedidoId;
+    }
+
+    return payload;
   }
 
   private mapPedido(item: SharePointPedidoItem): IPedido {
@@ -145,7 +188,6 @@ export class PedidoService {
       Title: item.Title || '',
       FormResponseId: item.FormResponseId,
       SubmittedAt: item.SubmittedAt,
-      CompletedAt: item.CompletedAt,
       NombreCompleto: item.NombreCompleto || '',
       WhatsApp: item.WhatsApp || '',
       MetodoEntrega: item.MetodoEntrega || '',
@@ -155,7 +197,7 @@ export class PedidoService {
       MetodoPago: item.MetodoPago || '',
       CubiertosDescartables: item.CubiertosDescartables ?? false,
       Comentarios: item.Comentarios || '',
-      EstadoPedido: item.EstadoPedido || 'Pendiente'
+      EstadoPedido: item.EstadoPedido || 'Nuevo'
     };
   }
 
@@ -163,7 +205,7 @@ export class PedidoService {
     return {
       ID: item.ID,
       Title: item.Title || '',
-      Pedido: item.Pedido || '',
+      Pedido: String(item.Pedido ?? item.PedidoId ?? ''),
       Producto: item.Producto || '',
       Cantidad: item.Cantidad ?? 1,
       Orden: item.Orden ?? 0

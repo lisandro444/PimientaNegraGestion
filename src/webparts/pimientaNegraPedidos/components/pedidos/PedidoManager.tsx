@@ -1,36 +1,35 @@
 import * as React from 'react';
 import {
   DefaultButton,
-  DetailsList,
-  type IColumn,
-  IconButton,
+  DatePicker,
+  DayOfWeek,
+  Dropdown,
+  type IDropdownOption,
   MessageBar,
   MessageBarType,
   Panel,
   PanelType,
   PrimaryButton,
-  SelectionMode,
-  Spinner,
-  SpinnerSize,
   Stack,
   Text,
   TextField,
-  Toggle,
-  Dropdown,
-  type IDropdownOption,
-  DatePicker,
-  DayOfWeek
+  Toggle
 } from '@fluentui/react';
-import type { IPedido } from '../../models/IPedido';
-import type { IPedidoItemFormData } from '../../models/IPedidoItem';
+import type { IPedido, IPedidoFormData } from '../../models/IPedido';
+import type { IPedidoItem, IPedidoItemFormData } from '../../models/IPedidoItem';
 import { SharePointService } from '../../services/SharePointService';
 import { PedidoService } from './PedidoService';
+import { PedidosListView } from './PedidosListView';
+import { PedidoDetailView } from './PedidoDetailView';
 import styles from './PedidoManager.module.scss';
 import type { IPedidoManagerProps } from './IPedidoManagerProps';
-import type { IPedidoManagerState } from './IPedidoManagerState';
+import type { IPedidoManagerState, IPedidoFiltros } from './IPedidoManagerState';
+
+// ── Constantes ──────────────────────────────────────────────────
 
 const ESTADOS: IDropdownOption[] = [
-  { key: 'Pendiente', text: 'Pendiente' },
+  { key: 'Nuevo', text: 'Nuevo' },
+  { key: 'Confirmado', text: 'Confirmado' },
   { key: 'En preparación', text: 'En preparación' },
   { key: 'Listo', text: 'Listo' },
   { key: 'Entregado', text: 'Entregado' },
@@ -39,7 +38,7 @@ const ESTADOS: IDropdownOption[] = [
 
 const METODOS_ENTREGA: IDropdownOption[] = [
   { key: 'Retiro en local', text: 'Retiro en local' },
-  { key: 'Delivery', text: 'Delivery' }
+  { key: 'Delivery', text: 'Entrega a domicilio' }
 ];
 
 const METODOS_PAGO: IDropdownOption[] = [
@@ -50,62 +49,63 @@ const METODOS_PAGO: IDropdownOption[] = [
 ];
 
 const HORARIOS: IDropdownOption[] = [
-  { key: '12:00 - 13:00', text: '12:00 - 13:00' },
-  { key: '13:00 - 14:00', text: '13:00 - 14:00' },
-  { key: '14:00 - 15:00', text: '14:00 - 15:00' },
-  { key: '19:00 - 20:00', text: '19:00 - 20:00' },
-  { key: '20:00 - 21:00', text: '20:00 - 21:00' },
-  { key: '21:00 - 22:00', text: '21:00 - 22:00' }
+  { key: 'Mediodía', text: 'Mediodía (12-15hs)' },
+  { key: 'Tarde', text: 'Tarde (19-21hs)' },
+  { key: 'Noche', text: 'Noche (21-23hs)' }
 ];
 
-const EMPTY_FORM = {
+const EMPTY_FORM: IPedidoFormData = {
   Title: '',
   NombreCompleto: '',
   WhatsApp: '',
   MetodoEntrega: 'Retiro en local',
   DireccionEntrega: '',
   FechaEntrega: '',
-  HorarioAproximado: '',
+  HorarioAproximado: 'Mediodía',
   MetodoPago: 'Efectivo',
   CubiertosDescartables: false,
   Comentarios: '',
-  EstadoPedido: 'Pendiente'
+  EstadoPedido: 'Nuevo'
 };
 
-function getEstadoBadgeClass(estado: string): string {
-  switch (estado) {
-    case 'En preparación': return styles.estadoEnPreparacion;
-    case 'Listo': return styles.estadoListo;
-    case 'Entregado': return styles.estadoEntregado;
-    case 'Cancelado': return styles.estadoCancelado;
-    default: return styles.estadoPendiente;
-  }
-}
+const EMPTY_FILTROS: IPedidoFiltros = {
+  texto: '',
+  estado: '',
+  franja: '',
+  metodo: ''
+};
 
-function formatDate(isoDate?: string): string {
-  if (!isoDate) return '-';
-  const d = new Date(isoDate);
-  return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-}
+// ── Componente principal ────────────────────────────────────────
 
 export default class PedidoManager extends React.Component<IPedidoManagerProps, IPedidoManagerState> {
   private readonly pedidoService: PedidoService;
+  private itemsCache: Map<number, IPedidoItem[]> = new Map();
+  private loadingSet: Set<number> = new Set();
+  private expandedIds: number[] = [];
 
   constructor(props: IPedidoManagerProps) {
     super(props);
-
     this.pedidoService = new PedidoService(new SharePointService(props.context.pageContext));
     this.state = {
+      view: 'lista',
+      showDetailPanel: false,
+      selectedPedido: undefined,
       pedidos: [],
       loading: true,
-      saving: false,
       error: '',
       success: '',
+      filtros: { ...EMPTY_FILTROS },
+      pedidosSeleccionados: [],
+      soloHoy: false,
+      pedidoItems: [],
+      loadingItems: false,
+      costoEnvio: this.pedidoService.getCostoEnvio(),
+      savingEstado: false,
       isPanelOpen: false,
+      saving: false,
       editingPedido: undefined,
       formData: { ...EMPTY_FORM },
-      itemsForm: [],
-      loadingItems: false
+      itemsForm: []
     };
   }
 
@@ -113,336 +113,308 @@ export default class PedidoManager extends React.Component<IPedidoManagerProps, 
     this.loadPedidos().catch((err) => {
       this.setState({
         loading: false,
-        error: `Error al cargar pedidos: ${err instanceof Error ? err.message : 'Error desconocido'}`
+        error: `Error al cargar pedidos: ${err instanceof Error ? err.message : String(err)}`
       });
     });
   }
 
-  public render(): React.ReactElement<IPedidoManagerProps> {
-    const { pedidos, loading, error, success, isPanelOpen, editingPedido, formData, saving, itemsForm, loadingItems } = this.state;
+  // ── Carga de datos ──────────────────────────────────────────────
 
-    const columns: IColumn[] = [
-      {
-        key: 'title',
-        name: 'N° Pedido',
-        fieldName: 'Title',
-        minWidth: 100,
-        maxWidth: 120,
-        isResizable: true,
-        onRender: (item: IPedido) => <span className={styles.clienteName}>{item.Title}</span>
-      },
-      {
-        key: 'cliente',
-        name: 'Cliente',
-        fieldName: 'NombreCompleto',
-        minWidth: 160,
-        isResizable: true
-      },
-      {
-        key: 'whatsapp',
-        name: 'WhatsApp',
-        fieldName: 'WhatsApp',
-        minWidth: 120,
-        isResizable: true
-      },
-      {
-        key: 'entrega',
-        name: 'Entrega',
-        fieldName: 'MetodoEntrega',
-        minWidth: 120,
-        isResizable: true
-      },
-      {
-        key: 'fecha',
-        name: 'Fecha entrega',
-        minWidth: 110,
-        isResizable: true,
-        onRender: (item: IPedido) => <span>{formatDate(item.FechaEntrega)}</span>
-      },
-      {
-        key: 'pago',
-        name: 'Pago',
-        fieldName: 'MetodoPago',
-        minWidth: 110,
-        isResizable: true
-      },
-      {
-        key: 'estado',
-        name: 'Estado',
-        minWidth: 130,
-        isResizable: true,
-        onRender: (item: IPedido) => (
-          <span className={`${styles.statusBadge} ${getEstadoBadgeClass(item.EstadoPedido)}`}>
-            {item.EstadoPedido}
-          </span>
-        )
-      },
-      {
-        key: 'actions',
-        name: 'Acciones',
-        minWidth: 90,
-        maxWidth: 100,
-        onRender: (item: IPedido) => (
-          <div className={styles.actionButtons}>
-            <IconButton
-              iconProps={{ iconName: 'Edit' }}
-              title="Editar"
-              ariaLabel="Editar"
-              onClick={() => {
-                this.openEditPanel(item).catch((err) => console.error('Error abriendo panel:', err));
-              }}
-            />
-            <IconButton
-              iconProps={{ iconName: 'Delete' }}
-              title="Eliminar"
-              ariaLabel="Eliminar"
-              onClick={() => {
-                this.handleDelete(item).catch((err) => console.error('Error eliminando:', err));
-              }}
-            />
-          </div>
-        )
-      }
-    ];
+  private readonly loadPedidos = async (): Promise<void> => {
+    this.setState({ loading: true, error: '' });
+    const pedidos = await this.pedidoService.getPedidos();
+    const sorted = [...pedidos].sort((a, b) => b.ID - a.ID);
+    this.setState({ pedidos: sorted, loading: false });
+    // Pre-cargar los primeros 10 pedidos
+    const toPreload = sorted.slice(0, 10);
+    await Promise.all(toPreload.map((p) => this.ensureItemsLoaded(p.ID, p.FormResponseId)));
+  };
+
+  private async ensureItemsLoaded(pedidoId: number, formResponseId?: number): Promise<void> {
+    if (this.itemsCache.has(pedidoId) || this.loadingSet.has(pedidoId)) return;
+    this.loadingSet.add(pedidoId);
+    this.forceUpdate();
+    try {
+      const items = await this.pedidoService.getItemsByPedidoId(pedidoId, formResponseId);
+      this.itemsCache.set(pedidoId, items);
+    } finally {
+      this.loadingSet.delete(pedidoId);
+      this.forceUpdate();
+    }
+  }
+
+  private readonly getItemsForPedido = (pedidoId: number): IPedidoItem[] => {
+    return this.itemsCache.get(pedidoId) ?? [];
+  };
+
+  // ── Render ──────────────────────────────────────────────────────
+
+  public render(): React.ReactElement<IPedidoManagerProps> {
+    const {
+      selectedPedido, showDetailPanel, pedidos, loading, error, success,
+      filtros, pedidosSeleccionados, soloHoy,
+      pedidoItems, loadingItems, costoEnvio, savingEstado,
+      isPanelOpen, saving, editingPedido, formData, itemsForm
+    } = this.state;
 
     return (
-      <div className={styles.pedidosShell}>
-        <Stack horizontal horizontalAlign="space-between" verticalAlign="end" className={styles.pageHeader}>
-          <div>
-            <Text variant="xxLarge" block className={styles.pageTitle}>
-              Pedidos
-            </Text>
-            <Text variant="medium" className={styles.pageSubtitle}>
-              Gestión de pedidos — Pimienta Negra Cocina
-            </Text>
-          </div>
-          <PrimaryButton
-            text="Nuevo pedido"
-            iconProps={{ iconName: 'Add' }}
-            onClick={this.openNewPanel}
-            className={styles.addButton}
-          />
-        </Stack>
-
+      <div className={`${styles.managerRoot} ${this.props.hasTeamsContext ? styles.teamsHost : ''}`}>
         {error && (
-          <div className={styles.messageBar}>
+          <div className={styles.globalMessageBar}>
             <MessageBar messageBarType={MessageBarType.error} onDismiss={() => this.setState({ error: '' })}>
               {error}
             </MessageBar>
           </div>
         )}
-
         {success && (
-          <div className={styles.messageBar}>
+          <div className={styles.globalMessageBar}>
             <MessageBar messageBarType={MessageBarType.success} isMultiline={false} onDismiss={() => this.setState({ success: '' })}>
               {success}
             </MessageBar>
           </div>
         )}
 
-        <div className={styles.tableCard}>
-          {loading ? (
-            <div className={styles.loadingContainer}>
-              <Spinner size={SpinnerSize.large} label="Cargando pedidos..." />
-            </div>
-          ) : pedidos.length === 0 ? (
-            <div className={styles.emptyState}>
-              <Text>No hay pedidos registrados. Creá el primero.</Text>
-            </div>
-          ) : (
-            <DetailsList
-              items={pedidos}
-              columns={columns}
-              selectionMode={SelectionMode.none}
-              className={styles.pedidosList}
-            />
-          )}
-        </div>
+        {/* Lista siempre visible */}
+        <PedidosListView
+            pedidos={pedidos}
+            loading={loading}
+            filtros={filtros}
+            pedidosSeleccionados={pedidosSeleccionados}
+            soloHoy={soloHoy}
+            costoEnvio={costoEnvio}
+            getItemsForPedido={this.getItemsForPedido}
+            loadingItemsIds={Array.from(this.loadingSet)}
+            expandedIds={this.expandedIds}
+            onFiltroChange={this.handleFiltroChange}
+            onToggleSeleccion={this.handleToggleSeleccion}
+            onSeleccionarTodos={this.handleSeleccionarTodos}
+            onLimpiarSeleccion={this.handleLimpiarSeleccion}
+            onCambiarEstadoMasivo={(estado) => {
+              this.handleCambiarEstadoMasivo(estado).catch(console.error);
+            }}
+            onVerDetalle={this.handleVerDetalle}
+            onToggleExpand={this.handleToggleExpand}
+            onSoloHoy={() => this.setState((s) => ({ soloHoy: !s.soloHoy }))}
+            onCostoEnvioChange={(valor) => {
+              this.pedidoService.setCostoEnvio(valor);
+              this.setState({ costoEnvio: valor });
+            }}
+            onNuevoPedido={this.openNewPanel}
+          />
 
-        <Panel
-          isOpen={isPanelOpen}
-          onDismiss={this.closePanel}
-          type={PanelType.medium}
-          headerText={editingPedido ? `Editar pedido — ${editingPedido.Title}` : 'Nuevo pedido'}
-          closeButtonAriaLabel="Cerrar"
-        >
-          <Stack tokens={{ childrenGap: 12 }}>
-            {/* ── Datos del pedido ─────────────────────────── */}
-            <TextField
-              label="N° / Título del pedido"
-              required
-              value={formData.Title}
-              onChange={(_, v) => this.updateFormField('Title', v || '')}
+        {/* Panel detalle (popup al hacer clic en card) */}
+        {showDetailPanel && selectedPedido && (
+          <Panel
+            isOpen={showDetailPanel}
+            onDismiss={() => this.setState({ showDetailPanel: false, selectedPedido: undefined })}
+            type={PanelType.large}
+            hasCloseButton
+            closeButtonAriaLabel="Cerrar"
+            isLightDismiss
+            styles={{
+              header: { display: 'none' },
+              content: { padding: '0' },
+              scrollableContent: { padding: '0' }
+            }}
+          >
+            <PedidoDetailView
+              pedido={selectedPedido}
+              items={pedidoItems}
+              loadingItems={loadingItems}
+              costoEnvio={costoEnvio}
+              savingEstado={savingEstado}
+              onVolver={() => this.setState({ showDetailPanel: false, selectedPedido: undefined })}
+              onCambiarEstado={(estado) => {
+                this.handleCambiarEstado(selectedPedido.ID, estado).catch(console.error);
+              }}
+              onEditar={() => this.openEditPanel(selectedPedido)}
             />
-            <TextField
-              label="Nombre completo"
-              required
-              value={formData.NombreCompleto}
-              onChange={(_, v) => this.updateFormField('NombreCompleto', v || '')}
-            />
-            <TextField
-              label="WhatsApp"
-              value={formData.WhatsApp}
-              onChange={(_, v) => this.updateFormField('WhatsApp', v || '')}
-            />
-            <Dropdown
-              label="Estado"
-              required
-              selectedKey={formData.EstadoPedido}
-              options={ESTADOS}
-              onChange={(_, option) => this.updateFormField('EstadoPedido', option?.key as string || 'Pendiente')}
-            />
-            <Dropdown
-              label="Método de entrega"
-              required
-              selectedKey={formData.MetodoEntrega}
-              options={METODOS_ENTREGA}
-              onChange={(_, option) => this.updateFormField('MetodoEntrega', option?.key as string || '')}
-            />
-            {formData.MetodoEntrega === 'Delivery' && (
-              <TextField
-                label="Dirección de entrega"
-                value={formData.DireccionEntrega}
-                onChange={(_, v) => this.updateFormField('DireccionEntrega', v || '')}
-              />
-            )}
-            <DatePicker
-              label="Fecha de entrega"
-              firstDayOfWeek={DayOfWeek.Monday}
-              placeholder="Seleccioná una fecha"
-              value={formData.FechaEntrega ? new Date(formData.FechaEntrega) : undefined}
-              onSelectDate={(date) => this.updateFormField('FechaEntrega', date ? date.toISOString() : '')}
-              formatDate={(date) => (date ? date.toLocaleDateString('es-AR') : '')}
-            />
-            <Dropdown
-              label="Horario aproximado"
-              selectedKey={formData.HorarioAproximado || null}
-              options={HORARIOS}
-              onChange={(_, option) => this.updateFormField('HorarioAproximado', option?.key as string || '')}
-            />
-            <Dropdown
-              label="Método de pago"
-              required
-              selectedKey={formData.MetodoPago}
-              options={METODOS_PAGO}
-              onChange={(_, option) => this.updateFormField('MetodoPago', option?.key as string || '')}
-            />
-            <Toggle
-              label="Cubiertos descartables"
-              checked={formData.CubiertosDescartables}
-              onText="Sí"
-              offText="No"
-              onChange={(_, checked) => this.updateFormField('CubiertosDescartables', !!checked)}
-            />
-            <TextField
-              label="Comentarios"
-              multiline
-              rows={3}
-              value={formData.Comentarios}
-              onChange={(_, v) => this.updateFormField('Comentarios', v || '')}
-            />
+          </Panel>
+        )}
 
-            {/* ── Ítems del pedido ─────────────────────────── */}
-            <Text variant="mediumPlus" block className={styles.sectionTitle}>
-              Productos del pedido
-            </Text>
-
-            {loadingItems ? (
-              <Spinner size={SpinnerSize.small} label="Cargando productos..." />
-            ) : (
-              <>
-                {itemsForm.length === 0 && (
-                  <Text className={styles.noItems}>Sin productos cargados.</Text>
-                )}
-                {itemsForm.map((item, index) => (
-                  <div key={item.localId || String(item.ID)} className={styles.itemRow}>
-                    <div className={styles.itemFieldProducto}>
-                      <TextField
-                        label={index === 0 ? 'Producto' : undefined}
-                        placeholder="Nombre del producto"
-                        value={item.Producto}
-                        onChange={(_, v) => this.updateItemField(index, 'Producto', v || '')}
-                      />
-                    </div>
-                    <div className={styles.itemFieldCantidad}>
-                      <TextField
-                        label={index === 0 ? 'Cant.' : undefined}
-                        type="number"
-                        value={String(item.Cantidad)}
-                        onChange={(_, v) => this.updateItemField(index, 'Cantidad', parseInt(v || '1', 10) || 1)}
-                      />
-                    </div>
-                    <div className={styles.itemFieldOrden}>
-                      <TextField
-                        label={index === 0 ? 'Orden' : undefined}
-                        type="number"
-                        value={String(item.Orden)}
-                        onChange={(_, v) => this.updateItemField(index, 'Orden', parseInt(v || '0', 10) || 0)}
-                      />
-                    </div>
-                    <IconButton
-                      iconProps={{ iconName: 'Delete' }}
-                      title="Quitar producto"
-                      ariaLabel="Quitar producto"
-                      onClick={() => this.removeItem(index)}
-                    />
-                  </div>
-                ))}
-                <DefaultButton
-                  text="Agregar producto"
-                  iconProps={{ iconName: 'Add' }}
-                  onClick={this.addItem}
-                  className={styles.addItemButton}
-                />
-              </>
-            )}
-
-            {/* ── Botones del panel ────────────────────────── */}
-            <Stack horizontal tokens={{ childrenGap: 8 }} className={styles.panelFooter}>
-              <PrimaryButton
-                text={saving ? 'Guardando...' : 'Guardar'}
-                onClick={() => {
-                  this.handleSave().catch((err) => console.error('Error guardando:', err));
-                }}
-                disabled={saving}
-              />
-              <DefaultButton text="Cancelar" onClick={this.closePanel} disabled={saving} />
-            </Stack>
-          </Stack>
-        </Panel>
+        {this.renderPanel(isPanelOpen, editingPedido, formData, itemsForm, saving)}
       </div>
     );
   }
 
-  // ── Carga ───────────────────────────────────────────────────────
+  // ── Panel ABM ────────────────────────────────────────────────────
 
-  private readonly loadPedidos = async (): Promise<void> => {
-    this.setState({ loading: true, error: '' });
-    const items = await this.pedidoService.getPedidos();
-    const sorted = [...items].sort((a, b) => b.ID - a.ID);
-    this.setState({ pedidos: sorted, loading: false });
+  private renderPanel(
+    isPanelOpen: boolean,
+    editingPedido: IPedido | undefined,
+    formData: IPedidoFormData,
+    itemsForm: IPedidoItemFormData[],
+    saving: boolean
+  ): React.ReactElement {
+    return (
+      <Panel
+        isOpen={isPanelOpen}
+        onDismiss={this.closePanel}
+        type={PanelType.medium}
+        headerText={editingPedido ? `Editar — ${editingPedido.Title}` : 'Nuevo pedido'}
+        closeButtonAriaLabel="Cerrar"
+      >
+        <Stack tokens={{ childrenGap: 12 }}>
+          <TextField label="N° / Título" required value={formData.Title}
+            onChange={(_, v) => this.updateFormField('Title', v || '')} />
+          <TextField label="Nombre completo" required value={formData.NombreCompleto}
+            onChange={(_, v) => this.updateFormField('NombreCompleto', v || '')} />
+          <TextField label="WhatsApp" value={formData.WhatsApp}
+            onChange={(_, v) => this.updateFormField('WhatsApp', v || '')} />
+          <Dropdown label="Estado" required selectedKey={formData.EstadoPedido} options={ESTADOS}
+            onChange={(_, o) => this.updateFormField('EstadoPedido', o?.key as string || 'Nuevo')} />
+          <Dropdown label="Método de entrega" required selectedKey={formData.MetodoEntrega} options={METODOS_ENTREGA}
+            onChange={(_, o) => this.updateFormField('MetodoEntrega', o?.key as string || '')} />
+          {formData.MetodoEntrega === 'Delivery' && (
+            <TextField label="Dirección de entrega" value={formData.DireccionEntrega}
+              onChange={(_, v) => this.updateFormField('DireccionEntrega', v || '')} />
+          )}
+          <DatePicker label="Fecha de entrega" firstDayOfWeek={DayOfWeek.Monday}
+            placeholder="Seleccioná una fecha"
+            value={formData.FechaEntrega ? new Date(formData.FechaEntrega) : undefined}
+            onSelectDate={(d) => this.updateFormField('FechaEntrega', d ? d.toISOString() : '')}
+            formatDate={(d) => d ? d.toLocaleDateString('es-AR') : ''} />
+          <Dropdown label="Horario aproximado" selectedKey={formData.HorarioAproximado || null} options={HORARIOS}
+            onChange={(_, o) => this.updateFormField('HorarioAproximado', o?.key as string || '')} />
+          <Dropdown label="Método de pago" required selectedKey={formData.MetodoPago} options={METODOS_PAGO}
+            onChange={(_, o) => this.updateFormField('MetodoPago', o?.key as string || '')} />
+          <Toggle label="Cubiertos descartables" checked={formData.CubiertosDescartables}
+            onText="Sí" offText="No"
+            onChange={(_, checked) => this.updateFormField('CubiertosDescartables', !!checked)} />
+          <TextField label="Comentarios" multiline rows={3} value={formData.Comentarios}
+            onChange={(_, v) => this.updateFormField('Comentarios', v || '')} />
+
+          <Text variant="mediumPlus" block className={styles.panelSectionTitle}>Productos</Text>
+          {itemsForm.length === 0 && <Text className={styles.noProductos}>Sin productos cargados.</Text>}
+          {itemsForm.map((item, idx) => (
+            <div key={item.localId || String(item.ID)} className={styles.itemFormRow}>
+              <TextField placeholder="Producto" value={item.Producto} styles={{ root: { flex: 2 } }}
+                onChange={(_, v) => this.updateItemField(idx, 'Producto', v || '')} />
+              <TextField placeholder="Cant." type="number" value={String(item.Cantidad)} styles={{ root: { width: 70 } }}
+                onChange={(_, v) => this.updateItemField(idx, 'Cantidad', parseInt(v || '1', 10) || 1)} />
+
+              <button className={styles.btnRemoveItem} onClick={() => this.removeItem(idx)} title="Quitar">✕</button>
+            </div>
+          ))}
+          <button className={styles.btnAddItem} onClick={this.addItem}>+ Agregar producto</button>
+
+          <Stack horizontal tokens={{ childrenGap: 8 }} className={styles.panelFooter}>
+            <PrimaryButton text={saving ? 'Guardando...' : 'Guardar'}
+              onClick={() => { this.handleSave().catch(console.error); }} disabled={saving} />
+            <DefaultButton text="Cancelar" onClick={this.closePanel} disabled={saving} />
+          </Stack>
+        </Stack>
+      </Panel>
+    );
+  }
+
+  // ── Handlers — navegación / lista ───────────────────────────────
+
+  private readonly handleToggleExpand = (pedidoId: number): void => {
+    if (this.expandedIds.includes(pedidoId)) {
+      this.expandedIds = this.expandedIds.filter((id) => id !== pedidoId);
+    } else {
+      this.expandedIds = [...this.expandedIds, pedidoId];
+      const pedido = this.state.pedidos.find((p) => p.ID === pedidoId);
+      this.ensureItemsLoaded(pedidoId, pedido?.FormResponseId).catch(console.error);
+    }
+    this.forceUpdate();
   };
 
-  // ── Panel ───────────────────────────────────────────────────────
+  private readonly handleFiltroChange = (partial: Partial<IPedidoFiltros>): void => {
+    this.setState((s) => ({ filtros: { ...s.filtros, ...partial } }));
+  };
+
+  private readonly handleToggleSeleccion = (id: number): void => {
+    this.setState((s) => ({
+      pedidosSeleccionados: s.pedidosSeleccionados.includes(id)
+        ? s.pedidosSeleccionados.filter((x) => x !== id)
+        : [...s.pedidosSeleccionados, id]
+    }));
+  };
+
+  private readonly handleSeleccionarTodos = (): void => {
+    this.setState((s) => ({ pedidosSeleccionados: s.pedidos.map((p) => p.ID) }));
+  };
+
+  private readonly handleLimpiarSeleccion = (): void => {
+    this.setState({ pedidosSeleccionados: [] });
+  };
+
+  private readonly handleCambiarEstadoMasivo = async (estado: string): Promise<void> => {
+    const { pedidosSeleccionados } = this.state;
+    if (pedidosSeleccionados.length === 0) return;
+    try {
+      this.setState({ savingEstado: true });
+      await Promise.all(pedidosSeleccionados.map((id) => this.pedidoService.updateEstado(id, estado)));
+      this.setState((s) => ({
+        pedidos: s.pedidos.map((p) =>
+          pedidosSeleccionados.includes(p.ID) ? { ...p, EstadoPedido: estado } : p
+        ),
+        pedidosSeleccionados: [],
+        success: `${pedidosSeleccionados.length} pedido(s) actualizados a "${estado}".`
+      }));
+    } catch (err) {
+      this.setState({ error: `Error al cambiar estado: ${err instanceof Error ? err.message : String(err)}` });
+    } finally {
+      this.setState({ savingEstado: false });
+    }
+  };
+
+  private readonly handleVerDetalle = (pedido: IPedido): void => {
+    const cached = this.itemsCache.get(pedido.ID);
+    this.setState({
+      showDetailPanel: true,
+      selectedPedido: pedido,
+      pedidoItems: cached ?? [],
+      loadingItems: !cached
+    });
+    if (!cached) {
+      this.pedidoService.getItemsByPedidoId(pedido.ID, pedido.FormResponseId)
+        .then((items) => {
+          this.itemsCache.set(pedido.ID, items);
+          this.setState({ pedidoItems: items, loadingItems: false });
+        })
+        .catch((err) => this.setState({
+          loadingItems: false,
+          error: `Error al cargar productos: ${err instanceof Error ? err.message : String(err)}`
+        }));
+    }
+  };
+
+  private readonly handleCambiarEstado = async (pedidoId: number, estado: string): Promise<void> => {
+    this.setState({ savingEstado: true });
+    try {
+      await this.pedidoService.updateEstado(pedidoId, estado);
+      this.setState((s) => ({
+        pedidos: s.pedidos.map((p) => p.ID === pedidoId ? { ...p, EstadoPedido: estado } : p),
+        selectedPedido: s.selectedPedido?.ID === pedidoId
+          ? { ...s.selectedPedido, EstadoPedido: estado }
+          : s.selectedPedido,
+        success: `Estado actualizado a "${estado}".`
+      }));
+    } catch (err) {
+      this.setState({ error: `Error al cambiar estado: ${err instanceof Error ? err.message : String(err)}` });
+    } finally {
+      this.setState({ savingEstado: false });
+    }
+  };
+
+  // ── Handlers — ABM ──────────────────────────────────────────────
 
   private readonly openNewPanel = (): void => {
     this.setState({
-      editingPedido: undefined,
-      isPanelOpen: true,
-      error: '',
-      success: '',
-      formData: { ...EMPTY_FORM },
-      itemsForm: []
+      isPanelOpen: true, editingPedido: undefined, error: '', success: '',
+      formData: { ...EMPTY_FORM }, itemsForm: []
     });
   };
 
-  private async openEditPanel(pedido: IPedido): Promise<void> {
+  private openEditPanel(pedido: IPedido): void {
+    const cachedItems = this.itemsCache.get(pedido.ID) ?? [];
     this.setState({
-      editingPedido: pedido,
       isPanelOpen: true,
-      error: '',
-      success: '',
-      loadingItems: true,
+      editingPedido: pedido,
+      error: '', success: '',
       formData: {
         Title: pedido.Title,
         NombreCompleto: pedido.NombreCompleto,
@@ -456,43 +428,23 @@ export default class PedidoManager extends React.Component<IPedidoManagerProps, 
         Comentarios: pedido.Comentarios,
         EstadoPedido: pedido.EstadoPedido
       },
-      itemsForm: []
-    });
-
-    const items = await this.pedidoService.getItemsByPedidoId(pedido.ID);
-    const itemsForm: IPedidoItemFormData[] = items
-      .sort((a, b) => a.Orden - b.Orden)
-      .map((i) => ({
-        localId: String(i.ID),
-        ID: i.ID,
-        Producto: i.Producto,
-        Cantidad: i.Cantidad,
+      itemsForm: cachedItems.map((i) => ({
+        localId: String(i.ID), ID: i.ID,
+        Producto: i.Producto, Cantidad: i.Cantidad,
         Orden: i.Orden
-      }));
-
-    this.setState({ itemsForm, loadingItems: false });
+      }))
+    });
   }
 
   private readonly closePanel = (): void => {
-    if (!this.state.saving) {
-      this.setState({ isPanelOpen: false });
-    }
+    if (!this.state.saving) this.setState({ isPanelOpen: false });
   };
 
-  // ── Formulario ─────────────────────────────────────────────────
-
-  private updateFormField(
-    field: keyof typeof EMPTY_FORM,
-    value: string | boolean
-  ): void {
+  private updateFormField(field: keyof IPedidoFormData, value: string | boolean): void {
     this.setState((s) => ({ formData: { ...s.formData, [field]: value } }));
   }
 
-  private updateItemField(
-    index: number,
-    field: keyof IPedidoItemFormData,
-    value: string | number
-  ): void {
+  private updateItemField(index: number, field: keyof IPedidoItemFormData, value: string | number): void {
     this.setState((s) => {
       const updated = [...s.itemsForm];
       updated[index] = { ...updated[index], [field]: value };
@@ -502,15 +454,11 @@ export default class PedidoManager extends React.Component<IPedidoManagerProps, 
 
   private readonly addItem = (): void => {
     this.setState((s) => ({
-      itemsForm: [
-        ...s.itemsForm,
-        {
-          localId: `new-${Date.now()}`,
-          Producto: '',
-          Cantidad: 1,
-          Orden: s.itemsForm.length + 1
-        }
-      ]
+      itemsForm: [...s.itemsForm, {
+        localId: `new-${Date.now()}`,
+        Producto: '', Cantidad: 1,
+        Orden: s.itemsForm.length + 1
+      }]
     }));
   };
 
@@ -522,85 +470,58 @@ export default class PedidoManager extends React.Component<IPedidoManagerProps, 
     });
   }
 
-  // ── Validación ──────────────────────────────────────────────────
-
   private validateForm(): string | undefined {
     const { formData, itemsForm } = this.state;
-
     if (!formData.Title.trim()) return 'El número/título del pedido es requerido.';
     if (!formData.NombreCompleto.trim()) return 'El nombre del cliente es requerido.';
-    if (!formData.MetodoEntrega) return 'Seleccioná un método de entrega.';
-    if (!formData.MetodoPago) return 'Seleccioná un método de pago.';
-    if (!formData.EstadoPedido) return 'Seleccioná un estado para el pedido.';
-
     for (const item of itemsForm) {
       if (!item.Producto.trim()) return 'Todos los productos deben tener nombre.';
       if (item.Cantidad < 1) return 'La cantidad debe ser al menos 1.';
     }
-
     return undefined;
   }
 
-  // ── CRUD ────────────────────────────────────────────────────────
-
   private async handleSave(): Promise<void> {
     const { editingPedido, formData, itemsForm } = this.state;
-    const validationError = this.validateForm();
-
-    if (validationError) {
-      this.setState({ error: validationError });
-      return;
-    }
+    const err = this.validateForm();
+    if (err) { this.setState({ error: err }); return; }
 
     try {
       this.setState({ saving: true, error: '', success: '' });
-
       let pedidoId: number;
+      let formResponseId: number | undefined;
 
       if (editingPedido) {
         await this.pedidoService.updatePedido(editingPedido.ID, formData);
         pedidoId = editingPedido.ID;
-        this.setState({ success: 'Pedido actualizado correctamente.' });
+        formResponseId = editingPedido.FormResponseId;
       } else {
         const created = await this.pedidoService.addPedido(formData);
         pedidoId = created.ID;
-        this.setState({ success: 'Pedido creado correctamente.' });
+        formResponseId = created.FormResponseId;
       }
 
-      await this.pedidoService.saveItems(pedidoId, itemsForm);
+      await this.pedidoService.saveItems(pedidoId, itemsForm, formResponseId);
+      this.itemsCache.delete(pedidoId);
 
       this.setState({
-        isPanelOpen: false,
-        editingPedido: undefined,
-        formData: { ...EMPTY_FORM },
-        itemsForm: []
+        isPanelOpen: false, editingPedido: undefined,
+        formData: { ...EMPTY_FORM }, itemsForm: [],
+        success: editingPedido ? 'Pedido actualizado.' : 'Pedido creado.'
       });
 
       await this.loadPedidos();
-    } catch (err) {
-      this.setState({
-        error: `Error al guardar el pedido: ${err instanceof Error ? err.message : 'Error desconocido'}`
-      });
+
+      if (this.state.view === 'detalle' && this.state.selectedPedido?.ID === pedidoId) {
+        const updatedItems = await this.pedidoService.getItemsByPedidoId(pedidoId, formResponseId);
+        this.itemsCache.set(pedidoId, updatedItems);
+        const updatedPedido = this.state.pedidos.find((p) => p.ID === pedidoId);
+        this.setState({ pedidoItems: updatedItems, selectedPedido: updatedPedido });
+      }
+    } catch (saveErr) {
+      this.setState({ error: `Error al guardar: ${saveErr instanceof Error ? saveErr.message : String(saveErr)}` });
     } finally {
       this.setState({ saving: false });
-    }
-  }
-
-  private async handleDelete(pedido: IPedido): Promise<void> {
-    const confirmed = window.confirm(
-      `¿Eliminás el pedido "${pedido.Title}" de ${pedido.NombreCompleto}? Esta acción también borrará todos sus productos.`
-    );
-    if (!confirmed) return;
-
-    try {
-      this.setState({ error: '', success: '' });
-      await this.pedidoService.deletePedido(pedido.ID);
-      this.setState({ success: 'Pedido eliminado correctamente.' });
-      await this.loadPedidos();
-    } catch (err) {
-      this.setState({
-        error: `Error al eliminar el pedido: ${err instanceof Error ? err.message : 'Error desconocido'}`
-      });
     }
   }
 }

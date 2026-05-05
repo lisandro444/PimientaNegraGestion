@@ -9,5 +9,7 @@
 
   &.teams {
     font-family: $ms-font-family-fallbacks;
+    padding: 10px 12px;
+    background: transparent; // Teams provides its own page bg
   }
 }
