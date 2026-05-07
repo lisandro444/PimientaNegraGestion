@@ -210,7 +210,8 @@ export default class PedidoManager extends React.Component<IPedidoManagerProps, 
           <Panel
             isOpen={showDetailPanel}
             onDismiss={() => this.setState({ showDetailPanel: false, selectedPedido: undefined })}
-            type={PanelType.large}
+            type={PanelType.custom}
+            customWidth="820px"
             hasCloseButton
             closeButtonAriaLabel="Cerrar"
             isLightDismiss
@@ -222,9 +223,6 @@ export default class PedidoManager extends React.Component<IPedidoManagerProps, 
           >
             <PedidoDetailView
               pedido={selectedPedido}
-              items={pedidoItems}
-              loadingItems={loadingItems}
-              costoEnvio={costoEnvio}
               savingEstado={savingEstado}
               onVolver={() => this.setState({ showDetailPanel: false, selectedPedido: undefined })}
               onCambiarEstado={(estado) => {

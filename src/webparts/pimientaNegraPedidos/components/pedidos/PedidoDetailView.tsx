@@ -1,14 +1,10 @@
 import * as React from 'react';
-import { Spinner, SpinnerSize, Text } from '@fluentui/react';
+import { Text } from '@fluentui/react';
 import type { IPedido } from '../../models/IPedido';
-import type { IPedidoItem } from '../../models/IPedidoItem';
 import styles from './PedidoManager.module.scss';
 
 export interface IPedidoDetailViewProps {
   pedido: IPedido;
-  items: IPedidoItem[];
-  loadingItems: boolean;
-  costoEnvio: number;
   savingEstado: boolean;
   onVolver: () => void;
   onCambiarEstado: (estado: string) => void;
@@ -24,7 +20,6 @@ const ESTADOS_BADGE: Record<string, string> = {
   'Cancelado': styles.estadoCancelado
 };
 
-// Flujo de estados hacia adelante
 const FLUJO_SIGUIENTE: Record<string, string> = {
   'Nuevo': 'Confirmado',
   'Confirmado': 'Entregado'
@@ -41,10 +36,6 @@ function formatFechaLarga(isoDate?: string): string {
   return d.toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
-function formatMoney(n: number): string {
-  return `$ ${n.toLocaleString('es-AR')}`;
-}
-
 function getFranja(horario: string): string {
   if (!horario) return '';
   const h = horario.toLowerCase();
@@ -56,14 +47,12 @@ function getFranja(horario: string): string {
 
 export const PedidoDetailView: React.FC<IPedidoDetailViewProps> = (props) => {
   const {
-    pedido, items, loadingItems, costoEnvio, savingEstado,
+    pedido,
+    savingEstado,
     onVolver, onCambiarEstado, onEditar
   } = props;
 
   const isDelivery = pedido.MetodoEntrega === 'Delivery' || pedido.MetodoEntrega === 'Entrega a domicilio';
-  const subtotal = 0;
-  const envio = isDelivery ? costoEnvio : 0;
-  const total = subtotal + envio;
 
   const estadoActual = pedido.EstadoPedido || 'Nuevo';
   const siguienteEstado = FLUJO_SIGUIENTE[estadoActual];
@@ -89,14 +78,11 @@ export const PedidoDetailView: React.FC<IPedidoDetailViewProps> = (props) => {
           <span className={`${styles.estadoBadge} ${ESTADOS_BADGE[estadoActual] || styles.estadoNuevo}`}>
             {estadoActual}
           </span>
-          <button className={styles.btnSecondary} onClick={onEditar}>✏ Editar</button>
+          <button className={styles.btnVolver} onClick={onEditar}>✏ Editar</button>
         </div>
       </div>
 
-      {/* ── Cuerpo en 2 columnas ─────────────────────────────── */}
       <div className={styles.detailBody}>
-
-        {/* ── Columna izquierda: datos cliente ─────────────── */}
         <div className={styles.detailCardMain}>
           <Text variant="large" block className={styles.cardTitle}>Cliente y entrega</Text>
 
@@ -152,27 +138,16 @@ export const PedidoDetailView: React.FC<IPedidoDetailViewProps> = (props) => {
           </div>
 
           {pedido.Comentarios && (
-            <div className={styles.comentariosBox} style={{ maxWidth: '45%', maxHeight: 130, overflowY: 'auto' }}>
+            <div className={styles.comentariosBox}>
               <span className={styles.comentariosLabel}>📌 NOTAS</span>
               <p className={styles.comentariosText}>{pedido.Comentarios}</p>
             </div>
-          )}
-
-          {!estaEntregado && !estaCancelado && (
-            <button
-              className={styles.btnMarcarEntregado}
-              onClick={() => onCambiarEstado('Entregado')}
-              disabled={savingEstado}
-            >
-              ⊙ Marcar como entregado
-            </button>
           )}
           {estaEntregado && (
             <div className={styles.entregadoBadge}>✓ Pedido entregado</div>
           )}
         </div>
 
-        {/* ── Columna derecha: gestión ─────────────────────── */}
         <div className={styles.detailCardGestion}>
           <Text variant="large" block className={styles.cardTitle}>Gestión</Text>
 
@@ -214,73 +189,9 @@ export const PedidoDetailView: React.FC<IPedidoDetailViewProps> = (props) => {
               ↺ Reactivar pedido
             </button>
           )}
-
-          <div className={styles.gestionSeparador} />
-
-          {/* Totales */}
-          <div className={styles.gestionTotalRow}>
-            <span>Subtotal</span>
-            <span>{formatMoney(subtotal)}</span>
-          </div>
-          <div className={styles.gestionTotalRow}>
-            <span>🚚 Envío</span>
-            <span>
-              {isDelivery ? (
-                <span>{formatMoney(costoEnvio)}</span>
-              ) : (
-                <span className={styles.envioLocal}>Retiro en local</span>
-              )}
-            </span>
-          </div>
-          <div className={styles.gestionSeparador} />
-          <div className={styles.gestionTotalFinal}>
-            <span>Total estimado</span>
-            <span className={styles.totalMonto}>{formatMoney(total)}</span>
-          </div>
         </div>
       </div>
 
-      {/* ── Sección productos ────────────────────────────────── */}
-      <div className={styles.detailCardProductos}>
-        <Text variant="large" block className={styles.cardTitle}>
-          Productos del pedido · {items.length}
-        </Text>
-
-        {loadingItems ? (
-          <Spinner size={SpinnerSize.medium} label="Cargando productos..." />
-        ) : items.length === 0 ? (
-          <div className={styles.noProductos}>Sin productos cargados.</div>
-        ) : (
-          <>
-            <div className={styles.productosTableHeader}>
-              <span className={styles.prodColProducto}>Producto</span>
-              <span className={styles.prodColCant}>Cant.</span>
-            </div>
-            {items.sort((a, b) => a.Orden - b.Orden).map((item) => (
-              <div key={item.ID} className={styles.productosTableRow}>
-                <span className={styles.prodColProducto}>{item.Producto}</span>
-                <span className={styles.prodColCant}>{item.Cantidad}</span>
-              </div>
-            ))}
-            <div className={styles.productosTotales}>
-              <div className={styles.gestionTotalRow}>
-                <span>Subtotal</span>
-                <span>{formatMoney(subtotal)}</span>
-              </div>
-              <div className={styles.gestionTotalRow}>
-                <span>Envío</span>
-                <span>{isDelivery ? formatMoney(costoEnvio) : 'Retiro en local'}</span>
-              </div>
-              <div className={styles.gestionTotalFinal}>
-                <span>Total estimado</span>
-                <span className={styles.totalMonto}>{formatMoney(total)}</span>
-              </div>
-            </div>
-          </>
-        )}
-      </div>
-
-      <button className={styles.btnVolverBottom} onClick={onVolver}>← Volver al listado</button>
     </div>
   );
 };
